@@ -22,6 +22,11 @@ export default function App() {
     }
   };
 
+  const editTodo = (oldTodo, newTodo) => {
+    const updatedTodos = todos.map((t) => (t === oldTodo ? newTodo : t));
+    setTodos(updatedTodos);
+  };
+
   const deleteTodo = (text) => {
     const newTodos = todos.filter((t) => t !== text);
     setTodos(newTodos);
@@ -72,6 +77,12 @@ export default function App() {
               className="border border-zinc-800 px-2 py-1 text-zinc-900 rounded-md bg-emerald-200"
             >
               Delete
+            </button>
+            <button
+              onClick={() => editTodo(todo, prompt("Edit Todo", todo))}
+              className="border border-zinc-800 px-2 py-1 text-zinc-900 rounded-md bg-amber-200 m-2"
+            >
+              Edit
             </button>
           </li>
         ))}
