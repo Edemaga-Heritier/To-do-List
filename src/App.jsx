@@ -13,6 +13,15 @@ export default function App() {
     }
   };
 
+  const [completedTodos, setCompletedTodos] = useState([]);
+  const toggleComplete = (todo) => {
+    if (completedTodos.includes(todo)) {
+      setCompletedTodos(completedTodos.filter((t) => t.trim() !== todo));
+    } else {
+      setCompletedTodos([...completedTodos, todo]);
+    }
+  };
+
   const deleteTodo = (text) => {
     const newTodos = todos.filter((t) => t !== text);
     setTodos(newTodos);
@@ -47,8 +56,16 @@ export default function App() {
         {todos.map((todo, index) => (
           <li
             key={index} // Utiliser l'index comme clé si les valeurs ne sont pas uniques
-            className="bg-zinc-200 px-4 py-2 flex items-center rounded-md"
+            className={`bg-zinc-200 px-4 py-2 flex items-center rounded-md ${
+              completedTodos.includes(todo) ? " line-through text-gray-500" : ""
+            }`}
           >
+            <input
+              type="checkbox"
+              checked={completedTodos.includes(todo)}
+              onChange={() => toggleComplete(todo)}
+              className="mr-2"
+            />
             <span className="flex-1">{todo}</span>
             <button
               onClick={() => deleteTodo(todo)}
