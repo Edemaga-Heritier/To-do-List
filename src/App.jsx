@@ -87,6 +87,11 @@ export default function App() {
           </li>
         ))}
       </ul>
+      <div className="flex justify-between text-sm">
+        <p>Total Tasks:{todos.length}</p>
+        <p>Completd: {completedTodos.length}</p>
+        <p>Pending: {todos.length - completedTodos.length}</p>
+      </div>
     </div>
   );
 }
