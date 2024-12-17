@@ -1,156 +1,257 @@
-import { useState, useEffect } from "react";
+/* eslint-disable react/prop-types */
+import { useState, useEffect, useRef } from "react";
+import { DndProvider, useDrag, useDrop } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
+
+const ItemType = "TODO";
 
 export default function App() {
   const [todos, setTodos] = useState([]);
   const [completedTodos, setCompletedTodos] = useState([]);
   const [filter, setFilter] = useState("all");
 
-  // Charger les tâches depuis le localStorage
+  // Référence pour focus automatique
+  const inputRef = useRef();
+
+  // Filtrage des tâches
+  const getFilteredTodos = () => {
+    switch (filter) {
+      case "completed":
+        return todos.filter((t) => completedTodos.includes(t.id));
+      case "pending":
+        return todos.filter((t) => !completedTodos.includes(t.id));
+      default:
+        return todos;
+    }
+  };
+
   useEffect(() => {
     const savedTodos = JSON.parse(localStorage.getItem("todos")) || [];
     setTodos(savedTodos);
   }, []);
 
-  // Sauvegarder les tâches dans le localStorage
   useEffect(() => {
     localStorage.setItem("todos", JSON.stringify(todos));
   }, [todos]);
 
-  // Filtrer les tâches
-  const getFilteredTodos = () => {
-    if (filter === "completed")
-      return todos.filter((t) => completedTodos.includes(t));
-    if (filter === "pending")
-      return todos.filter((t) => !completedTodos.includes(t));
-    return todos;
+  const isNearDeadline = (dueDate) => {
+    const today = new Date();
+    const taskDate = new Date(dueDate);
+    const diffInHours = (taskDate - today) / (1000 * 60 * 60);
+    return diffInHours <= 24 && diffInHours > 0;
   };
 
-  // Ajouter une tâche avec date
   const onAction = (formData) => {
     const todoText = formData.get("todo");
     const dueDate = formData.get("dueDate");
+    const finDate = formData.get("finDate");
 
     if (todoText && todoText.trim() !== "") {
-      setTodos([...todos, { text: todoText, dueDate }]);
+      const newTodo = {
+        id: Date.now(),
+        text: todoText,
+        dueDate,
+        finDate,
+      };
+
+      setTodos([...todos, newTodo]);
+
+      if (isNearDeadline(dueDate)) {
+        alert(
+          `⏰ Attention ! La tâche "${todoText}" arrive bientôt à échéance.`
+        );
+      }
+
+      // Focus sur le champ de saisie
+      inputRef.current.focus();
     }
   };
 
-  // Marquer/démarquer une tâche comme complète
-  const toggleComplete = (todo) => {
-    if (completedTodos.includes(todo)) {
-      setCompletedTodos(completedTodos.filter((t) => t !== todo));
+  const moveTodo = (dragIndex, hoverIndex) => {
+    const updatedTodos = [...todos];
+    const [draggedTodo] = updatedTodos.splice(dragIndex, 1);
+    updatedTodos.splice(hoverIndex, 0, draggedTodo);
+    setTodos(updatedTodos);
+  };
+
+  const toggleComplete = (id) => {
+    if (completedTodos.includes(id)) {
+      setCompletedTodos(completedTodos.filter((t) => t !== id));
     } else {
-      setCompletedTodos([...completedTodos, todo]);
+      setCompletedTodos([...completedTodos, id]);
     }
   };
 
-  // Modifier une tâche
-  const editTodo = (oldTodo, newText) => {
+  const editTodo = (id, newText) => {
     if (!newText) return;
-    const updatedTodos = todos.map((t) =>
-      t === oldTodo ? { ...t, text: newText } : t
+    const updatedTodos = todos.map((todo) =>
+      todo.id === id ? { ...todo, text: newText } : todo
     );
     setTodos(updatedTodos);
   };
 
-  // Supprimer une tâche
-  const deleteTodo = (todoToDelete) => {
-    setTodos(todos.filter((t) => t !== todoToDelete));
-    setCompletedTodos(completedTodos.filter((t) => t !== todoToDelete));
+  const deleteTodo = (id) => {
+    setTodos(todos.filter((todo) => todo.id !== id));
+    setCompletedTodos(completedTodos.filter((t) => t !== id));
   };
 
   return (
-    <div className="p-4 flex flex-col gap-4">
-      {/* Formulaire pour ajouter une tâche */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const formData = new FormData(e.target);
-          onAction(formData);
-          e.target.reset();
-        }}
-        className="flex items-center gap-2"
-      >
-        <input
-          name="todo"
-          className="border rounded-md px-2 py-3 flex-1"
-          placeholder="Enter a task"
-          required
-        />
-        <input type="date" name="dueDate" required />
-        <button
-          type="submit"
-          className="border rounded-md px-4 py-3 bg-zinc-900 text-white"
+    <DndProvider backend={HTML5Backend}>
+      <div className="p-6 bg-gray-50 min-h-screen flex flex-col items-center">
+        <h1 className="text-3xl font-bold text-center mb-6 text-indigo-600">
+          Task Manager
+        </h1>
+
+        {/* Compteurs des tâches */}
+        <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4 text-lg font-semibold w-full max-w-4xl">
+          <p className="bg-gray-100 rounded-lg p-3 text-center shadow">
+            Total: {todos.length}
+          </p>
+          <p className="bg-yellow-100 rounded-lg p-3 text-center shadow">
+            En cours: {todos.length - completedTodos.length}
+          </p>
+          <p className="bg-green-100 rounded-lg p-3 text-center shadow">
+            Terminées: {completedTodos.length}
+          </p>
+        </div>
+
+        {/* Formulaire */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            onAction(formData);
+            e.target.reset();
+          }}
+          className="flex flex-col sm:flex-row gap-3 mb-8 w-full max-w-4xl"
         >
-          Add
-        </button>
-      </form>
-
-      {/* Liste des tâches */}
-      <ul className="flex flex-col gap-4">
-        {getFilteredTodos().map((todo, index) => (
-          <li
-            key={index}
-            className={`bg-zinc-200 px-4 py-2 flex items-center rounded-md ${
-              completedTodos.includes(todo) ? "line-through text-gray-500" : ""
-            }`}
+          <input
+            ref={inputRef}
+            name="todo"
+            className="border rounded-md px-3 py-2 flex-1 shadow"
+            placeholder="Enter a task"
+            required
+          />
+          <input
+            type="datetime-local"
+            name="dueDate"
+            className="border rounded-md px-3 py-2 shadow"
+            required
+          />
+          <input
+            type="datetime-local"
+            name="finDate"
+            className="border rounded-md px-3 py-2 shadow"
+            required
+          />
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-all"
           >
-            <div className="flex-1">
-              <span>{todo.text}</span> -{" "}
-              <span className="text-sm text-gray-600">
-                Due: {todo.dueDate || "No date"}
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={completedTodos.includes(todo)}
-              onChange={() => toggleComplete(todo)}
-              className="mr-2"
-            />
-            <button
-              onClick={() => deleteTodo(todo)}
-              className="border border-zinc-800 px-2 py-1 text-zinc-900 rounded-md bg-emerald-200 ml-2"
-            >
-              Delete
-            </button>
-            <button
-              onClick={() => editTodo(todo, prompt("Edit Todo", todo.text))}
-              className="border border-zinc-800 px-2 py-1 text-zinc-900 rounded-md bg-amber-200 ml-2"
-            >
-              Edit
-            </button>
-          </li>
-        ))}
-      </ul>
+            Add
+          </button>
+        </form>
 
-      {/* Boutons de filtre */}
+        {/* Liste des tâches */}
+        <ul className="space-y-4 w-full max-w-4xl">
+          {getFilteredTodos().map((todo, index) => (
+            <TodoItem
+              key={todo.id}
+              index={index}
+              todo={todo}
+              moveTodo={moveTodo}
+              toggleComplete={toggleComplete}
+              deleteTodo={deleteTodo}
+              editTodo={editTodo}
+              isNearDeadline={isNearDeadline}
+              completed={completedTodos.includes(todo.id)}
+            />
+          ))}
+        </ul>
+
+        {/* Boutons de filtre */}
+        <div className="flex gap-2 mt-5">
+          {["all", "completed", "pending"].map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`px-4 py-2 rounded-md transition-all ${
+                filter === type
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-200 hover:bg-gray-300"
+              }`}
+            >
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </DndProvider>
+  );
+}
+
+function TodoItem({
+  todo,
+  index,
+  moveTodo,
+  toggleComplete,
+  deleteTodo,
+  editTodo,
+  isNearDeadline,
+  completed,
+}) {
+  const [, ref] = useDrag({
+    type: ItemType,
+    item: { index },
+  });
+
+  const [, drop] = useDrop({
+    accept: ItemType,
+    hover: (item) => {
+      if (item.index !== index) {
+        moveTodo(item.index, index);
+        item.index = index;
+      }
+    },
+  });
+
+  return (
+    <li
+      ref={(node) => ref(drop(node))}
+      className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-lg shadow-md transition-all ${
+        completed
+          ? "bg-gray-200 line-through text-gray-500"
+          : isNearDeadline(todo.dueDate)
+          ? "bg-yellow-50"
+          : "bg-white"
+      }`}
+    >
+      <div>
+        <p className="font-semibold">{todo.text}</p>
+        <p className="text-sm text-gray-500">Due: {todo.dueDate}</p>
+      </div>
+
+      <input
+        type="checkbox"
+        checked={completed}
+        onChange={() => toggleComplete(todo.id)}
+        className="m-2"
+      />
+
       <div className="flex gap-2">
         <button
-          onClick={() => setFilter("all")}
-          className="border rounded-md px-2 py-1 bg-red-500 text-white"
+          onClick={() => deleteTodo(todo.id)}
+          className="bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition-all"
         >
-          All
+          Delete
         </button>
         <button
-          onClick={() => setFilter("completed")}
-          className="border rounded-md px-2 py-1 bg-green-500 text-white"
+          onClick={() => editTodo(todo.id, prompt("Edit Todo", todo.text))}
+          className="bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition-all"
         >
-          Completed
-        </button>
-        <button
-          onClick={() => setFilter("pending")}
-          className="border rounded-md px-2 py-1 bg-blue-500 text-white"
-        >
-          Pending
+          Edit
         </button>
       </div>
-
-      {/* Statistiques */}
-      <div className="flex justify-between text-sm mt-2">
-        <p>Total Tasks: {todos.length}</p>
-        <p>Completed: {completedTodos.length}</p>
-        <p>Pending: {todos.length - completedTodos.length}</p>
-      </div>
-    </div>
+    </li>
   );
 }
